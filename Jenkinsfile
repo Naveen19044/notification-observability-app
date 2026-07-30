@@ -17,10 +17,13 @@ pipeline {
         }
 
         stage('Deploy') {
-            steps {
-                sh 'docker compose up -d'
-            }
-        }
+    steps {
+        sh '''
+            cp .env.example .env
+            docker compose up -d
+        '''
+       }
+    }
 
         stage('Verify') {
             steps {
