@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Notification practice app</title>
+<style>
+  body { font-family: sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; background: #f5f5f5; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 16px; margin-top: 30px; }
+  .card { background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+  input, textarea { width: 100%; padding: 8px; margin: 6px 0 12px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+  button { padding: 8px 16px; border: none; border-radius: 4px; background: #2563eb; color: white; cursor: pointer; margin-right: 8px; }
+  button.danger { background: #dc2626; }
+  button.secondary { background: #6b7280; }
+  #result, #chaosResult { margin-top: 10px; padding: 10px; background: #f0f0f0; border-radius: 4px; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { text-align: left; padding: 6px; border-bottom: 1px solid #eee; font-size: 13px; }
+  .status-pending { color: #d97706; }
+  .status-sent { color: #16a34a; }
+  .status-failed { color: #dc2626; }
+</style>
+</head>
+<body>
+
+<h1>Notification practice app</h1>
+<p>Every button here just sends the same kind of request you could send with curl.</p>
+
+<div class="card">
+  <h2>Send a notification</h2>
+  <input type="text" id="to" placeholder="To address (e.g. test@example.com)">
+  <input type="text" id="subject" placeholder="Subject">
+  <textarea id="body" placeholder="Body" rows="3"></textarea>
+  <button onclick="sendNotification()">Send notification</button>
+  <div id="result"></div>
+</div>
+
+<div class="card">
+  <h2>Recent notifications</h2>
+  <button class="secondary" onclick="loadNotifications()">Refresh list</button>
+  <span id="queueDepth" style="margin-left: 12px; font-size: 13px; color: #666;"></span>
+  <table id="notifTable">
+    <thead><tr><th>To</th><th>Subject</th><th>Status</th><th>Created</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2>Chaos controls — break things on purpose</h2>
+  <p style="font-size: 13px; color: #666;">Use these to simulate real incidents, then watch how status/queue depth reacts.</p>
+
+  <label>Failure rate: <span id="failRateLabel">0%</span></label>
+  <input type="range" id="failRate" min="0" max="100" value="0" oninput="updateFailRate(this.value)">
+
+  <div style="margin-top: 12px;">
+    <button onclick="toggleSlowMode(true)">Enable slow mode</button>
+    <button class="secondary" onclick="toggleSlowMode(false)">Disable slow mode</button>
+  </div>
+
+  <div style="margin-top: 12px;">
+    <button class="danger" onclick="toggleWorker(true)">Pause worker</button>
+    <button class="secondary" onclick="toggleWorker(false)">Resume worker</button>
+  </div>
+
+  <div id="chaosResult"></div>
+</div>
+
+<script>
+  // Uses whatever host the page itself was loaded from (localhost when run
+  // locally, the EC2 public IP or domain once deployed) instead of a
+  // hardcoded value that would break outside your own machine.
+  const API_BASE = `${window.location.protocol}//${window.location.hostname}:5001`;
+
+  async function sendNotification() {
+    const to = document.getElementById('to').value;
+    const subject = document.getElementById('subject').value;
+    const body = document.getElementById('body').value;
+
+    const res = await fetch(`${API_BASE}/api/notifications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, body })
+    });
+    const data = await res.json();
+    document.getElementById('result').textContent = `Status ${res.status}: ${JSON.stringify(data, null, 2)}`;
+    loadNotifications();
+  }
+
+  async function loadNotifications() {
+    const res = await fetch(`${API_BASE}/api/notifications`);
+    const rows = await res.json();
+    const tbody = document.querySelector('#notifTable tbody');
+    tbody.innerHTML = '';
+    rows.forEach(n => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${n.to_address}</td><td>${n.subject}</td><td class="status-${n.status}">${n.status}</td><td>${new Date(n.created_at).toLocaleTimeString()}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    const depthRes = await fetch(`${API_BASE}/api/queue-depth`);
+    const depthData = await depthRes.json();
+    document.getElementById('queueDepth').textContent = `Queue depth: ${depthData.depth}`;
+  }
+
+  async function updateFailRate(value) {
+    document.getElementById('failRateLabel').textContent = value + '%';
+    const res = await fetch(`${API_BASE}/chaos/fail-rate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rate: value / 100 })
+    });
+    const data = await res.json();
+    document.getElementById('chaosResult').textContent = JSON.stringify(data);
+  }
+
+  async function toggleSlowMode(enabled) {
+    const res = await fetch(`${API_BASE}/chaos/slow-mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled })
+    });
+    const data = await res.json();
+    document.getElementById('chaosResult').textContent = JSON.stringify(data);
+  }
+
+  async function toggleWorker(paused) {
+    const res = await fetch(`${API_BASE}/chaos/worker-pause`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paused })
+    });
+    const data = await res.json();
+    document.getElementById('chaosResult').textContent = JSON.stringify(data);
+  }
+
+  // auto-refresh every 3 seconds so you can watch statuses change live
+  setInterval(loadNotifications, 3000);
+  loadNotifications();
+</script>
+
+</body>
+</html>

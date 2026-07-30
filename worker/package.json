@@ -1,0 +1,14 @@
+{
+  "name": "notification-worker",
+  "version": "1.0.0",
+  "description": "Worker service that processes queued notifications",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "redis": "^4.7.0",
+    "pg": "^8.13.0",
+    "prom-client": "^15.1.3"
+  }
+}
