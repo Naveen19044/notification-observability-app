@@ -91,7 +91,7 @@ def record_metrics(response):
 # ---------- routes ----------
 @app.route("/api/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok", "service": "notification-api", "timestamp": datetime.utcnow().isoformat() + "Z"})
+    return jsonify({"status": "healthy", "service": "notification-api", "timestamp": datetime.utcnow().isoformat() + "Z"})
 
 @app.route("/metrics", methods=["GET"])
 def metrics():
