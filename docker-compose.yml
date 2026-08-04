@@ -58,13 +58,11 @@ services:
         condition: service_started
     restart: unless-stopped
 
+
   ui:
-    image: nginx:alpine
+    build: ./ui
     ports:
-      - "8080:80"
-    volumes:
-      - ./ui/index.html:/usr/share/nginx/html/index.html
-      - ./ui/nginx.conf:/etc/nginx/conf.d/default.conf
+      - "8081:80"
     depends_on:
       - api
     restart: unless-stopped
